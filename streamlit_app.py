@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import traceback
 
 import streamlit as st
 import inngest
@@ -50,9 +51,10 @@ async def send_rag_ingest_event(object_key: str, source_id: str) -> None:
                 },
             )
         )
-    except Exception:
+    except Exception as e:
         logger.exception("Inngest ingestion event send failed")
-        raise
+        st.error(f"DEBUG: {type(e).__name__}: {e}")
+        st.code(traceback.format_exc())
 
 
 st.title("Upload a PDF to Ingest")
