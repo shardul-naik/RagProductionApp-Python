@@ -2,12 +2,13 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import boto3
 
 
-def _storage_location() -> tuple[object, str, str]:
+def _storage_location() -> tuple[Any, str, str]:
     bucket_url = os.environ["STORAGE_BUCKET_URL"].rstrip("/")
     parsed = urlparse(bucket_url)
 

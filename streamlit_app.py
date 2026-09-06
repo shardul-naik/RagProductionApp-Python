@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 
 import streamlit as st
@@ -10,6 +11,8 @@ import requests
 from storage import upload_pdf
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def _inngest_is_production() -> bool:
@@ -28,23 +31,28 @@ def get_inngest_client() -> inngest.Inngest:
     return inngest.Inngest(
         api_base_url=api_base_url,
         app_id="rag_app",
-        event_key=os.getenv("INNGEST_EVENT_KEY"),
+        event_key=os.environ["INNGEST_EVENT_KEY"],
         signing_key=os.getenv("INNGEST_SIGNING_KEY"),
         is_production=_inngest_is_production(),
+        request_timeout=120_000,
     )
 
 
 async def send_rag_ingest_event(object_key: str, source_id: str) -> None:
     client = get_inngest_client()
-    await client.send(
-        inngest.Event(
-            name="rag/ingest_pdf",
-            data={
-                "object_key": object_key,
-                "source_id": source_id,
-            },
+    try:
+        await client.send(
+            inngest.Event(
+                name="rag/ingest_pdf",
+                data={
+                    "object_key": object_key,
+                    "source_id": source_id,
+                },
+            )
         )
-    )
+    except Exception:
+        logger.exception("Inngest ingestion event send failed")
+        raise
 
 
 st.title("Upload a PDF to Ingest")
@@ -66,17 +74,20 @@ st.title("Ask a question about your PDFs")
 
 async def send_rag_query_event(question: str, top_k: int) -> None:
     client = get_inngest_client()
-    result = await client.send(
-        inngest.Event(
-            name="rag/query_pdf_ai",
-            data={
-                "question": question,
-                "top_k": top_k,
-            },
+    try:
+        result = await client.send(
+            inngest.Event(
+                name="rag/query_pdf_ai",
+                data={
+                    "question": question,
+                    "top_k": top_k,
+                },
+            )
         )
-    )
-
-    return result[0]
+        return result[0]
+    except Exception:
+        logger.exception("Inngest query event send failed")
+        raise
 
 
 def _inngest_api_base() -> str:
