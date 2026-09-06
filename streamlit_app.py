@@ -11,6 +11,14 @@ from storage import upload_pdf
 
 load_dotenv()
 
+
+def _inngest_is_production() -> bool:
+    configured_mode = os.getenv("INNGEST_IS_PRODUCTION")
+    if configured_mode is not None:
+        return configured_mode.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(os.getenv("INNGEST_SIGNING_KEY"))
+
+
 st.set_page_config(page_title="RAG Ingest PDF", page_icon="📄", layout="centered")
 
 
@@ -22,7 +30,7 @@ def get_inngest_client() -> inngest.Inngest:
         app_id="rag_app",
         event_key=os.getenv("INNGEST_EVENT_KEY"),
         signing_key=os.getenv("INNGEST_SIGNING_KEY"),
-        is_production=os.getenv("INNGEST_IS_PRODUCTION", "false").lower() == "true",
+        is_production=_inngest_is_production(),
     )
 
 

@@ -16,6 +16,14 @@ from vector_db import QdrantStorage
 
 load_dotenv()
 
+
+def _inngest_is_production() -> bool:
+    configured_mode = os.getenv("INNGEST_IS_PRODUCTION")
+    if configured_mode is not None:
+        return configured_mode.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(os.getenv("INNGEST_SIGNING_KEY"))
+
+
 # Initialize Vector DB globally
 qdrant_store = QdrantStorage()
 
@@ -25,7 +33,7 @@ inngest_client = inngest.Inngest(
     event_key=os.getenv("INNGEST_EVENT_KEY"),
     signing_key=os.getenv("INNGEST_SIGNING_KEY"),
     logger=logging.getLogger("uvicorn"),
-    is_production=os.getenv("INNGEST_IS_PRODUCTION", "false").lower() == "true",
+    is_production=_inngest_is_production(),
 )
 
 # ------------------------------------------------------------------
