@@ -12,6 +12,7 @@ import requests
 from storage import upload_pdf
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ st.set_page_config(page_title="RAG Ingest PDF", page_icon="📄", layout="center
 @st.cache_resource
 def get_inngest_client() -> inngest.Inngest:
     api_base_url = os.getenv("INNGEST_API_BASE", "https://api.inngest.com")
+    st.write(f"DEBUG api_base_url={api_base_url}")
+    st.write(f"DEBUG is_production={_inngest_is_production()}")
     return inngest.Inngest(
         api_base_url=api_base_url,
         app_id="rag_app",
