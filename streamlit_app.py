@@ -24,6 +24,17 @@ def _inngest_is_production() -> bool:
     return bool(os.getenv("INNGEST_SIGNING_KEY"))
 
 
+def run_async(coro):
+    import asyncio
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
 st.set_page_config(page_title="RAG Ingest PDF", page_icon="📄", layout="centered")
 
 
@@ -67,7 +78,7 @@ if uploaded is not None:
     with st.spinner("Uploading and triggering ingestion..."):
         object_key = upload_pdf(uploaded.name, uploaded.getvalue())
         # Kick off the event and block until the send completes
-        asyncio.run(send_rag_ingest_event(object_key, uploaded.name))
+        run_async(send_rag_ingest_event(object_key, uploaded.name))
         # Small pause for user feedback continuity
         time.sleep(0.3)
     st.success(f"Triggered ingestion for: {uploaded.name}")
@@ -133,7 +144,7 @@ with st.form("rag_query_form"):
     if submitted and question.strip():
         with st.spinner("Sending event and generating answer..."):
             # Fire-and-forget event to Inngest for observability/workflow
-            event_id = asyncio.run(send_rag_query_event(question.strip(), int(top_k)))
+            event_id = run_async(send_rag_query_event(question.strip(), int(top_k)))
             # Poll the local Inngest API for the run's output
             output = wait_for_run_output(event_id)
             answer = output.get("answer", "")
