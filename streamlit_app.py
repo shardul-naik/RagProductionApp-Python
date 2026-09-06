@@ -107,12 +107,15 @@ async def send_rag_query_event(question: str, top_k: int) -> None:
 
 
 def _inngest_api_base() -> str:
-    return os.getenv("INNGEST_API_BASE", "https://api.inngest.com")
+    return os.getenv("INNGEST_API_BASE", "https://api.inngest.com").rstrip("/")
 
 
 def fetch_runs(event_id: str) -> list[dict]:
-    url = f"{_inngest_api_base()}/events/{event_id}/runs"
-    resp = requests.get(url)
+    url = f"{_inngest_api_base()}/v1/events/{event_id}/runs"
+    headers = {
+        "Authorization": f"Bearer {os.environ['INNGEST_SIGNING_KEY']}",
+    }
+    resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
     return data.get("data", [])
