@@ -13,6 +13,7 @@ dependencies = [
     "llama-index-core>=0.14.23",
     "llama-index-readers-file>=0.6.0",
     "openai>=2.52.0",
+    "boto3>=1.40.0",
     "python-dotenv>=1.2.2",
     "qdrant-client>=1.18.0",
     "streamlit>=1.60.0",

@@ -13,7 +13,7 @@ EMBED_DIM = 1536
 splitter = SentenceSplitter(chunk_size=1000, chunk_overlap=200)
 
 def get_openai_client():
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 def load_and_chunk_pdf(path: str) -> list[str]:
     file_path = Path(path)

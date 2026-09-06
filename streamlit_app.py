@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 import time
 
 import streamlit as st
@@ -8,6 +7,8 @@ from dotenv import load_dotenv
 import os
 import requests
 
+from storage import upload_pdf
+
 load_dotenv()
 
 st.set_page_config(page_title="RAG Ingest PDF", page_icon="📄", layout="centered")
@@ -15,26 +16,24 @@ st.set_page_config(page_title="RAG Ingest PDF", page_icon="📄", layout="center
 
 @st.cache_resource
 def get_inngest_client() -> inngest.Inngest:
-    return inngest.Inngest(app_id="rag_app", is_production=False)
+    api_base_url = os.getenv("INNGEST_API_BASE", "https://api.inngest.com")
+    return inngest.Inngest(
+        api_base_url=api_base_url,
+        app_id="rag_app",
+        event_key=os.getenv("INNGEST_EVENT_KEY"),
+        signing_key=os.getenv("INNGEST_SIGNING_KEY"),
+        is_production=os.getenv("INNGEST_IS_PRODUCTION", "false").lower() == "true",
+    )
 
 
-def save_uploaded_pdf(file) -> Path:
-    uploads_dir = Path("uploads")
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    file_path = uploads_dir / file.name
-    file_bytes = file.getbuffer()
-    file_path.write_bytes(file_bytes)
-    return file_path
-
-
-async def send_rag_ingest_event(pdf_path: Path) -> None:
+async def send_rag_ingest_event(object_key: str, source_id: str) -> None:
     client = get_inngest_client()
     await client.send(
         inngest.Event(
             name="rag/ingest_pdf",
             data={
-                "pdf_path": str(pdf_path.resolve()),
-                "source_id": pdf_path.name,
+                "object_key": object_key,
+                "source_id": source_id,
             },
         )
     )
@@ -45,12 +44,12 @@ uploaded = st.file_uploader("Choose a PDF", type=["pdf"], accept_multiple_files=
 
 if uploaded is not None:
     with st.spinner("Uploading and triggering ingestion..."):
-        path = save_uploaded_pdf(uploaded)
+        object_key = upload_pdf(uploaded.name, uploaded.getvalue())
         # Kick off the event and block until the send completes
-        asyncio.run(send_rag_ingest_event(path))
+        asyncio.run(send_rag_ingest_event(object_key, uploaded.name))
         # Small pause for user feedback continuity
         time.sleep(0.3)
-    st.success(f"Triggered ingestion for: {path.name}")
+    st.success(f"Triggered ingestion for: {uploaded.name}")
     st.caption("You can upload another PDF if you like.")
 
 st.divider()
@@ -73,8 +72,7 @@ async def send_rag_query_event(question: str, top_k: int) -> None:
 
 
 def _inngest_api_base() -> str:
-    # Local dev server default; configurable via env
-    return os.getenv("INNGEST_API_BASE", "http://127.0.0.1:8288/v1")
+    return os.getenv("INNGEST_API_BASE", "https://api.inngest.com")
 
 
 def fetch_runs(event_id: str) -> list[dict]:

@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 import asyncio
+from pathlib import Path
 from typing import Any, cast
 from fastapi import FastAPI
 from dotenv import load_dotenv
@@ -10,6 +11,7 @@ import inngest.fast_api
 from openai import OpenAI
 
 from data_loader import load_and_chunk_pdf, embed_texts
+from storage import download_pdf
 from vector_db import QdrantStorage
 
 load_dotenv()
@@ -18,9 +20,12 @@ load_dotenv()
 qdrant_store = QdrantStorage()
 
 inngest_client = inngest.Inngest(
+    api_base_url=os.getenv("INNGEST_API_BASE", "https://api.inngest.com"),
     app_id="rag_app",
+    event_key=os.getenv("INNGEST_EVENT_KEY"),
+    signing_key=os.getenv("INNGEST_SIGNING_KEY"),
     logger=logging.getLogger("uvicorn"),
-    is_production=False
+    is_production=os.getenv("INNGEST_IS_PRODUCTION", "false").lower() == "true",
 )
 
 # ------------------------------------------------------------------
@@ -31,19 +36,22 @@ inngest_client = inngest.Inngest(
     trigger=inngest.TriggerEvent(event="rag/ingest_pdf")
 )
 async def rag_ingest_pdf(ctx: inngest.Context) -> dict[str, Any]:
-    # Fix 1: Validate pdf_path is strictly a string for Pylance
-    raw_pdf_path = ctx.event.data.get("pdf_path")
-    if not raw_pdf_path or not isinstance(raw_pdf_path, str):
-        return {"error": "Missing or invalid 'pdf_path' in event data."}
+    raw_object_key = ctx.event.data.get("object_key")
+    if not raw_object_key or not isinstance(raw_object_key, str):
+        return {"error": "Missing or invalid 'object_key' in event data."}
     
-    pdf_path: str = raw_pdf_path
+    object_key: str = raw_object_key
     
     raw_source_id = ctx.event.data.get("source_id")
-    source_id: str = raw_source_id if isinstance(raw_source_id, str) and raw_source_id else pdf_path
+    source_id: str = raw_source_id if isinstance(raw_source_id, str) and raw_source_id else object_key
 
     # Step 1: Load and Chunk PDF
     async def _load() -> list[str]:
-        return await asyncio.to_thread(load_and_chunk_pdf, pdf_path)
+        pdf_path = await asyncio.to_thread(download_pdf, object_key)
+        try:
+            return await asyncio.to_thread(load_and_chunk_pdf, pdf_path)
+        finally:
+            Path(pdf_path).unlink(missing_ok=True)
 
     chunks: list[str] = await ctx.step.run("load-and-chunk", _load)
 
@@ -102,7 +110,7 @@ async def rag_query_pdf_ai(ctx: inngest.Context) -> dict[str, Any]:
 
     # Step 2: LLM Inference
     async def _llm() -> str:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         context_block = "\n\n".join(f"- {c}" for c in contexts)
         user_content = (
             "Use the following context to answer the question.\n\n"
